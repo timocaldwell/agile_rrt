@@ -16,45 +16,35 @@
 #include "pendcart_3link.h"
 
 class TreeVertex {
-private:
-    ode_state_type x0;
-    InterpVector *xxedge, *uuedge, *xxzero, *AA, *BB, *KK, *WWK, *SSK;
-    const NSxNS_type QQlqr, P1lqr, QQ, P1;
-    const NIxNI_type RR, RRinv, RRlqr, RRlqr_inv;
-    bool usezerotraj, computedisttogoal, save_edge;
-    double t_h_max_upper, t_h_bar;
+ private:
+  ode_state_type x0_;
+  InterpVector *xxedge_, *uuedge_, *xxzero_, *AA_, *BB_, *KK_, *WWK_, *SSK_;
+  const NSxNS_type QQlqr_, P1lqr_, QQ_, P1_;
+  const NIxNI_type RR_, RRinv_, RRlqr_, RRlqr_inv_;
+  bool usezerotraj_, computedisttogoal_, save_edge_;
+  double t_h_max_upper_, t_h_bar_;
 
-    const kin_constraints constraints;
-    
-    double t_h_cur, JJapprox_cur, JJproj_cur, disttogoal_cur;
-    NSxNS_type Pth_cur;
-    NSx1_type xxzeroerror_cur, xxsamp_cur, eta_cur;
-    InterpVector *xxproj_cur, *uuproj_cur;
-    
-    NSx1_type xxgoal;
-   
-    void initialize();
-    
-public:
-    TreeVertex (ode_state_type x0_in, bool usezerotraj_in, double t_h_max_upper_in, InterpVector * xxedge_in, InterpVector * uuedge_in, const kin_constraints & constraints_in, const NSxNS_type & QQ_in, const NIxNI_type & RR_in, const NSxNS_type & P1_in, const NSxNS_type & QQlqr_in, const NIxNI_type & RRlqr_in, const NSxNS_type & P1lqr_in, double t_h_bar_in, bool save_edge_in);
-    
-    ~TreeVertex();
-    
-    double JJ_linear_steer (const NSx1_type & xxsamp, const double t_h);
-    
-    void get_xxzero_pt(double tt, ode_state_type & xxzero_pt) { xxzero->pt(tt, xxzero_pt); }
-    
-    void set_xxgoal (const NSx1_type & xxgoal_in);
-    
-    double get_disttogoal() { return disttogoal_cur; }
-    
-    bool projection (const NSx1_type & xxsamp, const double t_h);
-    
-    void print_traj(double dt, const string & name, ostream & stream);
-    
-    void print_edge_traj(double dt, const string & name, ostream & stream);
-    
-    TreeVertex new_vertex();    
+  const kin_constraints constraints_;
+  
+  double t_h_cur_, JJapprox_cur_, JJproj_cur_, disttogoal_cur_;
+  NSxNS_type Pth_cur_;
+  NSx1_type xxzeroerror_cur_, xxsamp_cur_, eta_cur_;
+  InterpVector *xxproj_cur_, *uuproj_cur_;
+  NSx1_type xxgoal_;
+  
+  void Initialize();
+  
+ public:
+  TreeVertex(ode_state_type x0, bool usezerotraj, double t_h_max_upper, InterpVector * xxedge, InterpVector * uuedge, const kin_constraints & constraints, const NSxNS_type & QQ, const NIxNI_type & RR, const NSxNS_type & P1, const NSxNS_type & QQlqr, const NIxNI_type & RRlqr, const NSxNS_type & P1lqr, double t_h_bar, bool save_edge);
+  ~TreeVertex();
+  double JJLinearSteer(const NSx1_type & xxsamp, const double t_h);
+  void get_xxzero_pt(double tt, ode_state_type & xxzero_pt) {xxzero_->pt(tt, &xxzero_pt);}
+  void set_xxgoal(const NSx1_type & xxgoal);
+  double get_disttogoal() {return disttogoal_cur_;}
+  bool Projection(const NSx1_type & xxsamp, const double t_h);
+  void PrintTraj(double dt, const string & name, ostream & stream);
+  void PrintEdgeTraj(double dt, const string & name, ostream & stream);
+  TreeVertex NewVertex();
 };
 
-#endif /* defined(__Agile_RRT__treevertex__) */
+#endif // __Agile_RRT__treevertex__

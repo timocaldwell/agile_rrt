@@ -14,49 +14,49 @@
 
 
 class Tree {
-private:
-    struct treenode
-    {
-       TreeVertex * vert;
-       vector<treenode *> children;
-       treenode * parent;
-    };
+ public:
+  Tree(TreeVertex * init_vert, double t_h_max_upper, sampling_bnds bnds, int max_cnt = 10, int max_miss = 10, int max_samplemiss = 10, int printskip = 1, double seed = 0);
+  ~Tree() { DeleteTree(root_); }
+  void set_xxgoal_params(const NSx1_type & xxgoal);
+  void set_xxgoal_stopdist(double stopdist, const NSx1_type & xxgoal);
+  void set_nndelta(double nndelta) { nndelta_ = nndelta; }
+  void Print(double dt, const string & name = "tree", ostream & stream = cout);
+  int get_cnttot() {return cnt_;}
+  int get_misstot() {return miss_;}
+  int get_samplemisstot() {return samplemiss_;}
+  double get_disttogoal() {return disttogoal_;}
 
-    sampling_bnds bnds;
-    int cnt, miss, samplemiss, max_cnt, max_miss, max_samplemiss, printskip;
-    bool isprint, computedisttogoal, isstopdist;
-    double disttogoal, stopdist, t_h_max_upper;
-    
-    treenode * root;
-    treenode * leastdist_node;
-    
-    double nndelta;
-    double seed;
-    
-    void print_tree (treenode & node, double dt, const string & name, ostream & stream);
-    void print_branch (treenode & node, double dt, const string & name, ostream & stream);
-    
-    bool isnearer(treenode & node, double & best_dist, const NSx1_type & xxsamp, const double t_h);
-    bool isxxzeronear(treenode & node, const NSx1_type & xxsamp, double delta, const double t_h);
-    void nearestneighbor(treenode & node, treenode ** best_node_ptr, double & best_dist, const NSx1_type & xxsamp, const double delta, const double t_h);
-    bool extend(treenode & node, const NSx1_type & xxsamp, const double t_h );
-    void delete_tree( treenode * node );
-    
-public:
-    Tree ( TreeVertex * init_vert, double t_h_max_upper_in, sampling_bnds bnds_in, int max_cnt_in = 10, int max_miss_in = 10, int max_samplemiss_in = 10, int printskip_in = 1, double seed_in = 0 );
-    ~Tree() { delete_tree(root); }
-    void set_xxgoal_params ( const NSx1_type & xxgoal );
-    void set_xxgoal_stopdist (double stopdist_in, const NSx1_type & xxgoal);
-    void set_nndelta (double nndelta_in) { nndelta = nndelta_in; }
-    void print( double dt, const string & name = "tree", ostream & stream = cout);
-    int get_cnttot() { return cnt; }
-    int get_misstot() { return miss; }
-    int get_samplemisstot() { return samplemiss; }
-    double get_disttogoal() { return disttogoal; }
+  void ResetTree();
+  void PrintUpdate(double t_h, const NSx1_type & xxsamp);
+  void RunRRT();
+  
+ private:
+  struct treenode_
+  {
+   TreeVertex * vert;
+   vector<treenode_ *> children;
+   treenode_ * parent;
+  };
 
-    void reset_tree ();
-    void print_update(double t_h, const NSx1_type & xxsamp);
-    void runrrt();
+  sampling_bnds bnds_;
+  int cnt_, miss_, samplemiss_, max_cnt_, max_miss_, max_samplemiss_, printskip_;
+  bool isprint_, computedisttogoal_, isstopdist_;
+  double disttogoal_, stopdist_, t_h_max_upper_;
+  
+  treenode_ * root_;
+  treenode_ * leastdist_node_;
+  
+  double nndelta_;
+  double seed_;
+  
+  void PrintTree(treenode_ & node, double dt, const string & name, ostream & stream);
+  void PrintBranch(treenode_ & node, double dt, const string & name, ostream & stream);
+  
+  bool IsNearer(treenode_ & node, double & best_dist, const NSx1_type & xxsamp, const double t_h);
+  bool IsxxZeroNear(treenode_ & node, const NSx1_type & xxsamp, double delta, const double t_h);
+  void NearestNeighbor(treenode_ & node, treenode_ ** best_node_ptr, double & best_dist, const NSx1_type & xxsamp, const double delta, const double t_h);
+  bool Extend(treenode_ & node, const NSx1_type & xxsamp, const double t_h);
+  void DeleteTree(treenode_ * node);
 };
 
-#endif /* defined(__Agile_RRT__tree__) */
+#endif // __Agile_RRT__tree__
