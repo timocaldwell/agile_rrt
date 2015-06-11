@@ -2,8 +2,8 @@
 //  global.h
 //  Agile_RRT
 //
-//  Created by Timothy Caldwell on 9/20/14.
-//  Copyright (c) 2014 Timothy Caldwell. All rights reserved.
+//  Created by Timothy M. Caldwell.
+//  Copyright (c) 2015 Timothy M. Caldwell. Refer to license.txt
 //
 
 #ifndef __Agile_RRT__global__
@@ -37,12 +37,12 @@
 using namespace std;
 namespace odeint = boost::numeric::odeint;
 
-extern const int NI;
-extern const int NS;
-extern const int numlinks;
+extern const int NI;                              // Constant; Number of inputs to the dynamic system
+extern const int NS;                              // Constant; Number of states to the dynamic system
 
-extern const double kLARGENUM;
-extern const double kSMALLNUM;
+extern const double kLARGENUM;                    // Constant; A sufficiently large number
+
+// Constants; For integration using odeint
 extern const int kMAX_NUM_INTEGRATION_STEPS;
 extern const double kINTEGRATION_DT_START;
 
@@ -75,39 +75,45 @@ extern const int kWW_GRAMIANTYPE;
 extern const int kWWK_GRAMIANTYPE;
 extern const int kSSK_GRAMIANTYPE;
 
-typedef vector<double> ode_state_type; // odeint integrator state_type
+typedef vector<double> ode_state_type;            // odeint integrator state_type
 
 ///////////////////////////////
 //Currently implemented as global. Needs to be updated for NS and NI
 ///////////////////////////////
+// Eigen Matrix types of size NS or NI by NS or NI
 typedef Eigen::Matrix< double , 8 , 8 > NSxNS_type;
 typedef Eigen::Matrix< double , 8 , 1 > NSxNI_type;
 typedef Eigen::Matrix< double , 1 , 1 > NIxNI_type;
 typedef Eigen::Matrix< double , 1 , 8 > NIxNS_type;
 typedef Eigen::Matrix< double , 8 , 1 > NSx1_type;
 typedef Eigen::Matrix< double , 1 , 1 > NIx1_type;
-struct kin_constraints {
-  Eigen::Matrix<double, 8, 2> xbnds;
-  Eigen::Matrix<double, 1, 2> ubnds;
 
+struct constraints_struct {
+  Eigen::Matrix<double, 8, 2> xbounds;              // list of upper and lower bounds for each state
+  Eigen::Matrix<double, 1, 2> ubounds;              // list of upper and lower bounds for each input
+
+  // list of circle obstacles of radius obs_radii[.] at point (obs_Xs[.], obs_Ys[.])
   vector< double > obs_radii;
   vector< double > obs_Xs;
   vector< double > obs_Ys;
 };
-struct sampling_bnds {
-  Eigen::Matrix<double, 8, 2> xbnds;
-  Eigen::Matrix<double, 1, 2> ubnds;
+// list of upper and lower bounds for each state and input. Should be the same as those set in constraints_struct
+struct sampling_bounds_struct {
+  Eigen::Matrix<double, 8, 2> xbounds;
+  Eigen::Matrix<double, 1, 2> ubounds;
 };
 
+// stepper type used by odeint for integration
+//typedef odeint::controlled_runge_kutta< odeint::runge_kutta_dopri5<ode_state_type> > stepper_type; // Alternative stepper choice
+typedef odeint::controlled_runge_kutta< odeint::runge_kutta_cash_karp54<ode_state_type> > stepper_type;
 
-//typedef odeint::adams_bashforth_moulton< 5, double > stepper_type;
-//typedef odeint::runge_kutta_dopri5< double > stepper_type;
-//typedef odeint::runge_kutta_dopri5< double[8] > stepper_type;
-//typedef odeint::controlled_runge_kutta< odeint::runge_kutta_dopri5<ode_state_type> > stepper_type;
-typedef odeint::controlled_runge_kutta< odeint::runge_kutta_cash_karp54< ode_state_type > > stepper_type;
+// Printing parameters
+extern const int kPRINT_PRECISION;                // Printing precision number
+extern const double kPRINT_CHOP_BOUND;            // Lower bound for chopping (i.e. if abs(x)<kPRINT_CHOP_BOUND, then 0 is returned)
 
-extern void PrintVec(const vector<double> & vec, ostream & stream = std::cout);
-extern void PrintVec(const vector<double> & vec, const string & name, ostream & stream);
+// prints a vec to stream in a form easily readable by Mathematica.
+extern void PrintVec(const vector<double> & vec, ostream * stream = &(std::cout));
+extern void PrintVec(const vector<double> & vec, const string & name, ostream * stream);
 
 
 #endif // __Agile_RRT__global__

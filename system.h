@@ -2,9 +2,19 @@
 //  system.h
 //  Agile_RRT
 //
-//  Created by Timothy Caldwell on 9/25/14.
-//  Copyright (c) 2014 Timothy Caldwell. All rights reserved.
+//  Created by Timothy M. Caldwell.
+//  Copyright (c) 2015 Timothy M. Caldwell. Refer to license.txt
 //
+//  Within is the namespace sys which includes all integrations and differential equation solving for the dynamic system and equations relevant to Agile RRT and trajectory exploration.
+//  Included:
+//     Forward integration
+//     Backward integration
+//     Forward integration with constraint checking
+//     Class for solving Ricatti Equations
+//     Class for solving for reachability Gramians
+//     Class for solving linear systems (time-varying and time-invariant)
+//     Class for solving for state-transition matrix
+//  All classes can be interfaced through method functions.
 
 #ifndef __Agile_RRT__system__
 #define __Agile_RRT__system__
@@ -15,7 +25,14 @@
 
 namespace sys
 {
-//Implemented here because templates are stupid
+// Implemented here as a template.
+// Uses odeint to integrate the system sys forward in time from initial state x0 over the time interval [0,tt_h] where tt_h>0. The timing and results of each step is returned through the pointers tt_vec and xx_vec.
+// Returns true if integration is a success.
+// Example integration of free dynamics from the zero state for 1.0 seconds:
+//     vector<double> x0(NS,0.0)                                     // Initialize state to 0 vector
+//     vector<double> *tt_vec, *xx_vec;                              // For passing results
+//     PendCart pendcart_sys;                                        // Create a pendulum on a cart system object
+//     bool is_success = IntegrateForward(pendcart_sys, x0, 1.0, tt_vec, xx_vec);
 template <typename TT>
 bool IntegrateForward(const TT & sys, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec) {
   ode_state_type xx = x0;
@@ -26,16 +43,17 @@ bool IntegrateForward(const TT & sys, const ode_state_type & x0, double tt_h, ve
   
   tt_vec->clear();
   xx_vec->clear();
+  // initial time and state.
   tt_vec->push_back(0.0);
   xx_vec->push_back(x0);
-  
   odeint::controlled_step_result step_result;
-  
   while (tt < tt_h && step_num < kMAX_NUM_INTEGRATION_STEPS) {
+    // Shrink dt if the next step steps past the time horizon tt_h.
     if (tt_h - tt < dt)
       dt = tt_h - tt;
-    step_result = stepper.try_step( sys , xx , tt , dt );
-    if(step_result == 0){
+
+    step_result = stepper.try_step(sys , xx , tt , dt);
+    if(step_result == 0) {                                        // successful step execution
       tt_vec->push_back(tt);
       xx_vec->push_back(xx);
     }
@@ -46,7 +64,13 @@ bool IntegrateForward(const TT & sys, const ode_state_type & x0, double tt_h, ve
   return false;
 }
 
-//Implemented here because templates are stupid
+// Implemented here as a template.
+// Similar to IntegrateForward() except the system sys is integrated backward in time from final state x1 over the time interval [0,tt_h] where tt_h>0.
+// The time-varying Ricatti equation and the slot 2 state-transition matrix differential equation are defined backward in time and solved using this function.
+// Since odeint only integrates forward in time, time is reparameterized by ss where tt = tt_h-ss. Due to this reparameterization, the differential equation in sys must be negative of what it should be. To elaborate, if the equations are normally:
+//       dxxdtt = ff(xx, tt),   xx(tt_h) = x1
+//  then, the differential equation in sys must be transformed to gg(xx, ss) := -ff(xx, tt):
+//       dxxdss = gg(xx, ss),   xx(0) = x1
 template <typename TT>
 bool IntegrateBackward(const TT & sys, const ode_state_type & x1, double tt_h, vector<double> * tts, vector<ode_state_type> * xxs) {
   ode_state_type xx = x1;
@@ -62,77 +86,44 @@ bool IntegrateBackward(const TT & sys, const ode_state_type & x1, double tt_h, v
   
   //integrates forward in time so setting ss = tt_h - tt
   while (ss < tt_h && step_num < kMAX_NUM_INTEGRATION_STEPS) {
+    // Shrink dt if the next step steps past the time horizon tt_h.
     if (tt_h - ss < ds)
       ds = tt_h - ss;
-    step_result = stepper.try_step( sys , xx , ss , ds );
+    
+    step_result = stepper.try_step(sys , xx , ss , ds);
     if(step_result == 0){
       tts->push_back(tt_h - ss);
       xxs->push_back(xx);
     }
     step_num++;
   }
+  // If integration is successful, reverse to switch the parameterization back from ss to tt.
   if (ss >= tt_h) {
-    reverse(tts->begin(), tts->end()); //Reverse to fix integrating forward in time.
+    reverse(tts->begin(), tts->end());
     reverse(xxs->begin(), xxs->end());
     return true;
   }
   return false;
 }
 
-//Implemented here because templates are stupid
-template <typename TT>
-bool IntegrateForwardWithConstraints(const ode_state_type & uu_loc, const TT & sys, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec, vector<ode_state_type> * uu_vec) {
-  ode_state_type xx = x0;
-  double tt = 0.0;
-  double dt = 0.00001;
-  int step_num = 0;
-  stepper_type stepper;
-  
-  tt_vec->clear();
-  xx_vec->clear();
-  uu_vec->clear();
-  tt_vec->push_back(0.0);
-  xx_vec->push_back(x0);
-  stepper.try_step(sys , xx , tt , dt); // calling to get uu at time 0 which populating uu_loc
-  uu_vec->push_back(uu_loc);
-  
-  xx = x0;
-  tt = 0.0;
-  dt = kINTEGRATION_DT_START;
-  odeint::controlled_step_result step_result;
-  
-  while (tt < tt_h && step_num < kMAX_NUM_INTEGRATION_STEPS) {
-    if (tt_h - tt < dt)
-      dt = tt_h - tt;
-    step_result = stepper.try_step(sys, xx, tt, dt); // note stepper also populates uu_loc (shared memory)
-    if ( !sys.IsConstraintSatisfied(xx_vec->back(), xx, uu_loc) )
-      return false;
-    if (step_result == 0){
-      tt_vec->push_back(tt);
-      xx_vec->push_back(xx);
-      uu_vec->push_back(uu_loc);
-    }
-    step_num++;
-  }
-  if ( tt >= tt_h ){
-    //check final state for constraints
-    dt = .00001;
-    step_result = stepper.try_step( sys , xx , tt , dt );
-
-    if ( !sys.IsConstraintSatisfied(xx_vec->back(), xx, uu_loc) )
-        return false;
-    if( step_result == 0 )
-        return true;
-  }
-  return false;
-}
+// Solves dxxdtt = ff(xx, 0), xx(0) = x0
 bool IntegrateFreeDynamics(const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec);
-bool IntegrateFeedForwardDynamics(const InterpVector & uus_vec, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec);
-bool IntegratePointTrackingDynamics(const InterpVector & KKs_vec, const ode_state_type & xx_ref, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec);
-bool IntegrateTrajectoryTrackingDynamics(const InterpVector & uu_ff_interp, const InterpVector & KKs_vec, const InterpVector & xx_ref_interp, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec);
-bool IntegrateTrajectoryTrackingDynamicsWithConstraints(const InterpVector & uu_ff_interp, const InterpVector & KKs_vec, const InterpVector & xx_ref_interp, const ode_state_type & x0, const kin_constraints & constraints, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec, vector<ode_state_type> * uu_vec);
-bool IntegrateTrajectoryLinearSteeringProjectionWithConstraints(const InterpVector & xxzero, const InterpVector & BB, const InterpVector & KKlin, const InterpVector & KKproj, const InterpVector & WWK, const InterpVector & Phi, const NSx1_type & eta, const NIxNI_type & RRinv, const ode_state_type & x0, const kin_constraints & constraints, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec, vector<ode_state_type> * uu_vec);
-bool IntegrateTrajectoryLinearSteeringProjectionWithConstraintsWithCost(const NSx1_type & xx_samp, const InterpVector & xxzero, const InterpVector & BB, const InterpVector & KKlin, const InterpVector & KKproj, const InterpVector & WWK, const InterpVector & Phi, const NSx1_type & eta, const NSxNS_type & QQ, const NIxNI_type & RR, const NSxNS_type & P1, const NIxNI_type & RRinv, const ode_state_type & x0, const kin_constraints & constraints, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec, vector<ode_state_type> * uu_vec, double * JJ);
+// Solves dxxdtt = ff(xx, uu_ff_interp), xx(0) = x0
+bool IntegrateFeedForwardDynamics(const InterpVector & uu_ff_interp, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec);
+// Solves dxxdtt = ff(xx, KKs_interp*(xx_ref-xx)), xx(0) = x0
+bool IntegratePointTrackingDynamics(const InterpVector & KKs_interp, const ode_state_type & xx_ref, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec);
+// Solves dxxdtt = ff(xx, uu_ff_interp + KKs_interp*(xx_ref_interp-xx)), xx(0) = x0
+bool IntegrateTrajectoryTrackingDynamics(const InterpVector & uu_ff_interp, const InterpVector & KKs_interp, const InterpVector & xx_ref_interp, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec);
+
+// Similar to IntegrateForward() for just the PendCart system except it additionally:
+//    1. checks at each step that the constraints specified in sys are satisfied and if not returns false.
+//    2. passes the uu results to uu_vec. When PendCart is initialized, the location of uu computed for each step must be passed by uu_loc.
+bool IntegrateDynamicSystemWithConstraints(const ode_state_type & uu_loc, const PendCart & sys, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec, vector<ode_state_type> * uu_vec);
+// Solves dxxdtt = ff(xx, uu_ff_interp + KKs_interp*(xx_ref_interp-xx)), xx(0) = x0
+bool IntegrateTrajectoryTrackingDynamicsWithConstraints(const InterpVector & uu_ff_interp, const InterpVector & KKs_interp, const InterpVector & xx_ref_interp, const ode_state_type & x0, const constraints_struct & constraints, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec, vector<ode_state_type> * uu_vec);
+// XXXXXXXXXXX
+bool IntegrateTrajectoryLinearSteeringProjectionWithConstraints(const InterpVector & xxzero, const InterpVector & BB, const InterpVector & KKlin, const InterpVector & KKproj, const InterpVector & WWK, const InterpVector & Phi, const NSx1_type & eta, const NIxNI_type & RRinv, const ode_state_type & x0, const constraints_struct & constraints, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec, vector<ode_state_type> * uu_vec);
+bool IntegrateTrajectoryLinearSteeringProjectionWithConstraintsWithCost(const NSx1_type & xx_samp, const InterpVector & xxzero, const InterpVector & BB, const InterpVector & KKlin, const InterpVector & KKproj, const InterpVector & WWK, const InterpVector & Phi, const NSx1_type & eta, const NSxNS_type & QQ, const NIxNI_type & RR, const NSxNS_type & P1, const NIxNI_type & RRinv, const ode_state_type & x0, const constraints_struct & constraints, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec, vector<ode_state_type> * uu_vec, double * JJ);
 
 class RicattiEq {
  public:
@@ -168,8 +159,8 @@ class ReachabilityEq {
   int gramiantype_;
 };
 bool IntegrateWW(const InterpVector & AAs_interp, const InterpVector & BBs_interp, const NIxNI_type & RRinv, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * WW_vec);
-bool IntegrateWWK(const InterpVector & AAs_interp, const InterpVector & BBs_interp, const InterpVector & KKs_interp, const NIxNI_type & RRinv, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * WW_vec);
-bool IntegrateSSK(const InterpVector & AAs_interp, const InterpVector & BBs_interp, const InterpVector & KKs_interp, const InterpVector & WWKs_interp, const NIxNI_type & RR, const NIxNI_type & RRinv, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * WW_vec);
+bool IntegrateWWK(const InterpVector & AAs_interp, const InterpVector & BBs_interp, const InterpVector & KKs_interp, const NIxNI_type & RRinv, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * WWK_vec);
+bool IntegrateSSK(const InterpVector & AAs_interp, const InterpVector & BBs_interp, const InterpVector & KKs_interp, const InterpVector & WWKs_interp, const NIxNI_type & RR, const NIxNI_type & RRinv, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * SS_vec);
 
 // dxx = AA*xx + BB*uu
 class LinearEq {
@@ -179,11 +170,11 @@ class LinearEq {
   const NIxNI_type * RRinv_;
   vector<double> uu_vec_;
   int type_, controltype_;
-  const InterpVector *AAs_interp_;
-  const InterpVector *BBs_interp_;
-  const InterpVector *uus_ff_interp_;
-  const InterpVector *Phis_interp_;
-  const InterpVector *KKs_interp_;
+  const InterpVector * AAs_interp_;
+  const InterpVector * BBs_interp_;
+  const InterpVector * uus_ff_interp_;
+  const InterpVector * Phis_interp_;
+  const InterpVector * KKs_interp_;
   const NSx1_type * eta_star_;
 
  public:
@@ -210,13 +201,13 @@ class STMslot2Eq { // dPhi(tt_h, t) = -Phi(tt_h, t) A(t)
   STMslot2Eq (const InterpVector & AAs_interp, const InterpVector & BBs_interp, const InterpVector & KKs_interp, double t_h);
   void operator()( const ode_state_type &Phi_vec , ode_state_type &dPhi_vec , const double ss );
  private:
-  const NSxNS_type *AA_LTI_;
-  const NSxNI_type *BB_LTI_;
-  const NIxNS_type *KK_LTI_;
+  const NSxNS_type * AA_LTI_;
+  const NSxNI_type * BB_LTI_;
+  const NIxNS_type * KK_LTI_;
   int type_;
-  const InterpVector *AAs_interp_;
-  const InterpVector *BBs_interp_;
-  const InterpVector *KKs_interp_;
+  const InterpVector * AAs_interp_;
+  const InterpVector * BBs_interp_;
+  const InterpVector * KKs_interp_;
   double t_h_;  // For backward integration
 };
 

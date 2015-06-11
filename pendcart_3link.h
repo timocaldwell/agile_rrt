@@ -1,9 +1,18 @@
-//
-//  pendcart_3link.h
-//  Agile_RRT
-//
-//  Created by Timothy Caldwell on 9/28/14.
-//  Copyright (c) 2014 Timothy Caldwell. All rights reserved.
+//                                                                                                                            
+//  pendcart_3link.h                                                                                                          
+//  Agile_RRT                                                                                                                 
+//                                                                                                                            
+//  Created by Timothy M. Caldwell.                                                                                           
+//  Copyright (c) 2015 Timothy M. Caldwell. Refer to license.txt                                                              
+//                                                                                                                            
+//  Within is class PendCart which provides the system equations for a triple pendulum on a cart dynamic system of the form dxxdtt = f(xx, uu).  PendCart(...) constructs the object to be integrated by odeint (see system.h for integrations) through overloaded operator(). Different constructors correspond to differing control feedback schemes including those used for the Agile RRT. The methods CalcAA and CalcBB return the linearization about the state and control respectively for the dynamic system.
+//                                                                                                                            
+//  triple pendulum on a cart physical characteristics:                                                                       
+//  totallen: 1.0 m;                                                                                                          
+//  lenLink: 0.333333 m;                                                                                                      
+//  gravity: 9.81 m/s/s;                                                                                                      
+//  head mass: 0.1 Kg;                                                                                                        
+//  body mass: 1.0 Kg;                                                                                                        
 //
 
 #ifndef __Agile_RRT__pendcart__
@@ -14,59 +23,103 @@
 
 class PendCart {
  public:
-  PendCart();
-  PendCart(const InterpVector & uu_ff_interp);
-  PendCart(const InterpVector & KK_interp, const ode_state_type & xx_ref_pt);
-  PendCart(const InterpVector & uu_ff_interp, const InterpVector & KK_interp, const InterpVector & xx_ref_interp);
-  PendCart(const InterpVector & uu_ff_interp, const InterpVector & KK_interp, const InterpVector & xx_ref_interp, const kin_constraints & constraints, ode_state_type * uu_out);
-  PendCart(const InterpVector & xxzero, const InterpVector & BB, const InterpVector & KKlin, const InterpVector & KKproj, const InterpVector & WWK, const InterpVector & Phi, const NSx1_type & eta, const NIxNI_type & RRinv, const kin_constraints & constraints, ode_state_type * uu_out);
-  PendCart(const InterpVector & xxzero, const InterpVector & BB, const InterpVector & KKlin, const InterpVector & KKproj, const InterpVector & WWK, const InterpVector & Phi, const NSx1_type & eta, const NSxNS_type & QQ, const NIxNI_type & RR, const NIxNI_type & RRinv, const kin_constraints & constraints, ode_state_type * uu_out);
+  // For constructors:                                                                                                                                    
+  //  1. The arguments to the constructor determine the control feedback form for integration by odeint. A point in control or state space is a vector<double>. A curve in control or state space is an InterpVector. All InterpVectors are interpolated over time tt (see interp.h).
+  //  2. If constraints are passed, a boolean checking constraint satisfaction can be checked by calling IsConstraintSatisfied().                         
+  //  3. If pointer uu_out is passed, the current point uu is stored at location uu_out. Note uu_out is needed for checking constraints.
 
+  // free dynamics---i.e. zero input control---uu = 0
+  PendCart();
+  // feedforward control---dxxdtt = uu = uu_ff_interp
+  PendCart(const InterpVector & uu_ff_interp);
+  // track point---uu = kk_interp*(xx_ref_pt - xx)
+  PendCart(const InterpVector & KK_interp, const ode_state_type & xx_ref_pt);
+  // track trajectory with feedforward---uu = uu_ff_interp + kk_interp*(xx_ref_interp - xx)
+  PendCart(const InterpVector & uu_ff_interp, const InterpVector & KK_interp, const InterpVector & xx_ref_interp);
+  PendCart(const InterpVector & uu_ff_interp, const InterpVector & KK_interp, const InterpVector & xx_ref_interp, const constraints_struct & constraints, ode_state_type * uu_out);
+  // For Agile RRT implemenation: Inexact inear steering with projection                                                                                  
+  //   xxtilde = xxzero - WWK_mat*Phi^T*eta                                                                                                               
+  //   uutilde = (KKlin*WWK - RRinv*BB^T)*Phi^T*eta                                                                                                       
+  //   uu = uutilde + KKproj*(xxtilde - xx)
+  PendCart(const InterpVector & xxzero, const InterpVector & BB, const InterpVector & KKlin, const InterpVector & KKproj, const InterpVector & WWK, const InterpVector & Phi, const NSx1_type & eta, const NIxNI_type & RRinv, const constraints_struct & constraints, ode_state_type * uu_out);
+  // For Agile RRT implemenation: Inexact inear steering with projection (same as previous).                                                              
+  //   Additionally computes the running cost ell = 0.5*xx^T*QQ*xx + 0.5*uu^T*RR*uu at position NS in dxxdtt---i.e. f(xx,uu) is length NS+1 now.
+  PendCart(const InterpVector & xxzero, const InterpVector & BB, const InterpVector & KKlin, const InterpVector & KKproj, const InterpVector & WWK, const InterpVector & Phi, const NSx1_type & eta, const NSxNS_type & QQ, const NIxNI_type & RR, const NIxNI_type & RRinv, const constraints_struct & constraints, ode_state_type * uu_out);
+
+  // Computes dxxdtt = f(xx,uu) for time tt. For use by odeint through method try_step (refer to system.h).
   void operator()( const ode_state_type xx , ode_state_type &dxxdtt , const double tt );
 
+  // Passes the linearization of f(xx,uu) with respect to xx for points xx and uu to AA
   template<typename TT>
   void CalcAA(const vector<double> & xx, const vector<double> & uu, Eigen::MatrixBase<TT> * AA);
   
+  // Passes the linearization of f(xx,uu) with respect to uu for points xx and uu to BB
   template<typename TT>
   void CalcBB(const vector<double> & xx, const vector<double> &uu, Eigen::MatrixBase<TT> * BB);
-  
+
+  // Returns false if linear interpoloation between xx_prev and xx_cur violates kinematic constraints specified by member variable constraints.           
+  // Returns false if uu_cur is outside the bounds specified by member variable constraints.
   bool IsConstraintSatisfied(const vector<double> &, const vector<double> &, const vector<double> &) const;
 
  private:
-  //pendulum characteristics:
-  //  totallen: 1;
-  //  lenLink: 0.3333;
-  //  gravity: 9.81;
-  //  head mass: 0.1;
-  //  body mass: 1;
-
   const double linklen_ = 0.333333;
+  const int numlinks_ = 3;
 
+//  vector<double> uu_;
+//  int type_;
+//  const InterpVector * uu_ff_interp_; // feedforward inputs
+//  const InterpVector * KK_interp_; // Gains
+//  const InterpVector * xx_ref_interp_; // Trajectory tracking
+//
+//  const InterpVector * xxzero_;
+//  const InterpVector * BB_;
+//  const InterpVector * KKlin_;
+//  const InterpVector * KKproj_;
+//  const InterpVector * WWK_;
+//  const InterpVector * Phi_;
+//  
+//  const NSx1_type * eta_;
+//  const NIxNI_type * RRinv_;
+//  const NSxNS_type * QQ_;
+//  const NIxNI_type * RR_;
+//
+//  const ode_state_type * xx_ref_pt_;
+//  const constraints_struct * constraints_;
   vector<double> uu_;
   int type_;
-  const InterpVector * uu_ff_interp_; // feedforward inputs
-  const InterpVector * KK_interp_; // Gains
-  const InterpVector * xx_ref_interp_; // Trajectory tracking
+  const InterpVector * uu_ff_interp_;         // Feedforward trajectory.                                                                                  
+  const InterpVector * KK_interp_;            // Feedback Gains.                                                                                          
+  const InterpVector * xx_ref_interp_;        // Reference for trajectory tracking.                                                                       
+  const ode_state_type * xx_ref_pt_;          // Feedback point.                                                                                          
 
-  const InterpVector * xxzero_;
-  const InterpVector * BB_;
-  const InterpVector * KKlin_;
-  const InterpVector * KKproj_;
-  const InterpVector * WWK_;
-  const InterpVector * Phi_;
-  
-  const NSx1_type * eta_;
-  const NIxNI_type * RRinv_;
+  // for efficient inexact linear steering and projection for Agile RRT implementation (refer to RRT paper)                                               
+  const InterpVector * xxzero_;               // Zero-control trajectory---i.e. xx when dxxdtt = f(xx,0).                                                 
+  const InterpVector * BB_;                   // Linearization about uu.                                                                                  
+  const InterpVector * KKlin_;                // Gains for linear steering.                                                                               
+  const InterpVector * KKproj_;               // Trajectory tracking projection gains.                                                                    
+  const InterpVector * WWK_;                  // Reachability Gramian.                                                                                    
+  const InterpVector * Phi_;                  // State-transition matrix for a linearization AA.                                                          
+  const NSx1_type * eta_;                     // Vector that determines linear steering location.                                                         
+
+  // Weighting matrices QQ = QQ^T>=0, RR = RR^T>0, RRinv = RR^{-1}                                                                                        
   const NSxNS_type * QQ_;
   const NIxNI_type * RR_;
+  const NIxNI_type * RRinv_;
 
-  const ode_state_type * xx_ref_pt_;
-  const kin_constraints * constraints_;
+  // Constraints on state and control to be checked through IsConstraintSatisfied(). When constraints_==nullptr, IsConstraintSatisfied() returns true.    
+  const constraints_struct * constraints_;
+  
+  // The location of the control input used in integration. This pointer is needed since odeint does not provide a direct way to retain details of the integration.
   ode_state_type * uu_out_;
-  bool IsLineCircleIntersect(double, double, double, double, double, double, double) const;
+
+  // The dynamics for the system---dxxdtt = ff(xx,uu)
+  void ff(const ode_state_type & xx, const vector<double> & uu, ode_state_type * dxxdtt);
+  
+  // Returns true if line segment between points (ppX, ppY) and (qqX, qqY) intersects circle at point (rrX, rrY) with squared radius radius_squared.
+  bool IsLineCircleIntersect(double radius_squared, double ppX, double ppY, double qqX, double qqY, double rrX, double rrY) const;
 };
 
-// Implemented here because templates are stupid.
+// Hard coded linearization of ff(xx, uu) about xx for points xx and uu. The equations were exported from Mathematica.
 template<typename TT>
 void PendCart::CalcAA(const vector<double> & xx, const vector<double> & uu, Eigen::MatrixBase<TT> * AA) {
   EIGEN_STATIC_ASSERT_MATRIX_SPECIFIC_SIZE(TT, 8, 8);
@@ -102,9 +155,6 @@ void PendCart::CalcAA(const vector<double> & xx, const vector<double> & uu, Eige
   double sqvar2 = pow((0.000027434842249657064 - sqcx2x4/72900.)*(cx0/8100. - (cx0x4*cx4)/24300.) -
          (cx0x2/36450. - (cx0x4*cx2x4)/72900.)*(cx2/12150. - (cx2x4*cx4)/24300.),2);
   double sqvar3 = pow(cx2/12150. - (cx2x4*cx4)/24300.,2);
-//    double sqvar4 = pow((0.000027434842249657064 - sqcx2x4/72900.)*
-//            (cx0/8100. - (cx0x4*cx4)/24300.) -
-//           (cx0x2/36450. - (cx0x4*cx2x4)/72900.)*(cx2/12150. - (cx2x4*cx4)/24300.),2);
   double sqvar5 = pow(-0.06666666666666667 + sqcx2x4/30.,2);
   double sqvar6 = pow((0.000027434842249657064 - sqcx2x4/72900.)*
           (cx0/8100. - (cx0x4*cx4)/24300.) - 
@@ -2195,6 +2245,7 @@ void PendCart::CalcAA(const vector<double> & xx, const vector<double> & uu, Eige
 
 }
 
+// Hard coded linearization of ff(xx, uu) about uu for points xx and uu. The equations were exported from Mathematica.
 template<typename TT>
 void PendCart::CalcBB(const vector<double> & xx, const vector<double> & uu, Eigen::MatrixBase<TT> * BB) {
   EIGEN_STATIC_ASSERT_MATRIX_SPECIFIC_SIZE(TT, 8, 1);
@@ -2207,10 +2258,6 @@ void PendCart::CalcBB(const vector<double> & xx, const vector<double> & uu, Eige
   double cx0x2 = cos(xx[0] - xx[2]);
   double cx0x4 = cos(xx[0] - xx[4]);
   double cx2x4 = cos(xx[2] - xx[4]);
-  
-//    double sqx1 = pow(xx[1],2);
-//    double sqx3 = pow(xx[3],2);
-//    double sqx5 = pow(xx[5],2);
   
   double sqcx4 = pow(cx4,2);
   
