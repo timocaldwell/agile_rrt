@@ -15,7 +15,7 @@
 //    max_miss = 1000           | Max number of failed insertions into the tree. RRT ends if max_miss reached.
 //    max_samplemiss = 10000    | Max number of failed attempts to find a
 //    numbruns = 1              | Number of runs of the RRT. Run more to get more statistics.
-//    stopdist = 2.0            | Stops RRT if a point is explored within a ball of radius stopdist from the goal state.
+//    stopdist = 0.0            | Stops RRT if a point is explored within a ball of radius stopdist from the goal state.
 //    printskip = 1             | Number of loops of the RRT to skip between printing details to standard out.
 //    nndelta = LARGENUM        | Nearest Neighbor ball radius for quickly checking
 //    stats_name = "0"          | Filename to store statistics as a csv. Use "0" or no arg to not make file.
@@ -61,117 +61,61 @@ void SpecifyCostGains(const sampling_bounds_struct & bounds, NSxNS_type * QQ, NI
 // Sets root trajectory to the tree to be the free trajectory for the duration of the max time horizon.
 void SpecifyRootTrajectory(const ode_state_type & x0, double t_h_max_upper, InterpVector * xx_interp, InterpVector * uu_interp);
 // Execute the RRT for the number of runs numbruns specified.
-void Execute(const sampling_bounds_struct & bounds, TreeVertex * init_vert, inputs_struct * inputs) {
-  clock_t t_start2 = clock();
-  Tree tree(init_vert, inputs->t_h_max_upper, bounds, inputs->max_cnt, inputs->max_miss, inputs->max_samplemiss, inputs->printskip, inputs->seed);
-
-  if (inputs->computexxgoaldist) {
-    NSx1_type xxgoal;
-    xxgoal << 0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 6.0 , 0.0;
-    tree.set_xxgoal_stopdist (inputs->stopdist, xxgoal);
-  }
-  
-  tree.set_nndelta(inputs->nndelta);
-  
-  double meancnt = 0;
-  double meanmiss = 0;
-  double meandist = 0;
-  double meansamplemiss = 0;
-  int numbxxgoalfails = 0;
-  for (int ii = 0; ii < inputs->numbruns; ++ii) {
-    cout << " ########################### " << endl;
-    cout << "           ii = " << ii << endl;
-    cout << " ########################### " << endl;
-    
-    tree.RunRRT();
-    
-    meandist += tree.get_disttogoal()/inputs->numbruns;
-    meancnt += double(tree.get_cnttot())/inputs->numbruns;
-    meanmiss += double(tree.get_misstot())/inputs->numbruns;
-    meansamplemiss += double(tree.get_samplemisstot())/inputs->numbruns;
-    
-    if (tree.get_disttogoal() > inputs->stopdist)
-      numbxxgoalfails++;
-    
-    if (inputs->is_traj_out)
-      tree.Print( 0.02, "tree_"+to_string(ii), &inputs->traj_f);
-    
-    tree.ResetTree();
-  }
-  cout << "mean dist is: " << meandist << endl;
-  cout << "mean cnt is: " << meancnt << endl;
-  cout << "mean miss is: " << meanmiss << endl;
-  cout << "mean sample miss is: " << meansamplemiss << endl;
-  cout << "mean run time: " << ((float)(clock()-t_start2))/CLOCKS_PER_SEC/inputs->numbruns << " seconds." << endl;
-  cout << "number of xxgoal fails: " << numbxxgoalfails << endl;
-  
-  if (inputs->is_stats_out) {
-    inputs->stats_f << "meandist, " << meandist << endl;
-    inputs->stats_f << "meancnt, " << meancnt << endl;
-    inputs->stats_f << "meanmiss, " << meanmiss << endl;
-    inputs->stats_f << "meansamplemiss, " << meansamplemiss << endl;
-    inputs->stats_f << "meanruntime, " << ((float)(clock()-t_start2))/CLOCKS_PER_SEC/inputs->numbruns << endl;
-    inputs->stats_f << "numbxxgoalsfails, " << numbxxgoalfails << endl;
-    inputs->stats_f.close();
-  }
-  if ( inputs->is_traj_out ) {
-    inputs->traj_f << "}";
-    inputs->traj_f.close();
-  }
-}
+void Execute(const sampling_bounds_struct & bounds, TreeVertex * init_vert, inputs_struct * inputs);
 
 int main(int argc, const char * argv[])
 {
   inputs_struct inputs;
   SpecifyInputs(argc, argv, &inputs);
-  
+  cout << "asd" << endl;
   // The initial conditions
   ode_state_type x0 = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-
+  cout << "bsd" << endl;
   // Set bounds and constraints.
   sampling_bounds_struct bounds;
   constraints_struct constraints;
   SpecifyConstraints(&bounds, &constraints);
-  
+    cout << "csd" << endl;
   // Set cost gains.
   NSxNS_type QQ, P1;
   NIxNI_type RR, RRinv;
   SpecifyCostGains(bounds, &QQ, &RR, &RRinv, &P1);
-
+  cout << "dsd" << endl;
   // Set root trajectory to free dynamics.
-  InterpVector * xx_interp = nullptr;
-  InterpVector * uu_interp = nullptr;
-  SpecifyRootTrajectory(x0, inputs.t_h_max_upper, xx_interp, uu_interp);
-  
+  InterpVector xx_interp;// = nullptr;
+  InterpVector uu_interp;// = nullptr;
+  SpecifyRootTrajectory(x0, inputs.t_h_max_upper, &xx_interp, &uu_interp);
+  cout << "esd" << endl;
   // Create initial vertex.
-  TreeVertex * init_vert = new TreeVertex(x0, inputs.usezerotraj, inputs.t_h_max_upper, *xx_interp, *uu_interp, constraints, QQ, RR, P1, QQ, RR, P1, inputs.t_h_max_upper, inputs.save_edges);
-
+  TreeVertex * init_vert = new TreeVertex(x0, inputs.usezerotraj, inputs.t_h_max_upper, xx_interp, uu_interp, constraints, QQ, RR, P1, QQ, RR, P1, inputs.t_h_max_upper, inputs.save_edges);
+  cout << "fsd" << endl;
   Execute(bounds, init_vert, &inputs);
 }
 
 void SpecifyInputs(int argc, const char * argv[], inputs_struct * inputs) {
+  cout << "a " << argc << endl;
   if (argc > 1)
-    sscanf(argv[1], "%lf", &inputs->t_h_max_upper);
+    sscanf(argv[1], "%lf", &(inputs->t_h_max_upper));
   if (argc > 2)
     if ( strcmp(argv[2],"false") == 0 ) // anything besides false is assumed true
         inputs->usezerotraj = false;
   if (argc > 3)
-    sscanf(argv[3], "%d", &inputs->max_cnt);
+    sscanf(argv[3], "%d", &(inputs->max_cnt));
   if (argc > 4)
-    sscanf(argv[4], "%d", &inputs->max_miss);
+    sscanf(argv[4], "%d", &(inputs->max_miss));
   if (argc > 5)
-    sscanf(argv[5], "%d", &inputs->max_samplemiss);
+    sscanf(argv[5], "%d", &(inputs->max_samplemiss));
   if (argc > 6)
-    sscanf(argv[6], "%d", &inputs->numbruns);
+    sscanf(argv[6], "%d", &(inputs->numbruns));
   if (argc > 7) {
-    sscanf(argv[7], "%lf", &inputs->stopdist);
+    sscanf(argv[7], "%lf", &(inputs->stopdist));
     if (inputs->stopdist != 0)
       inputs->computexxgoaldist = true;
   }
   if (argc > 8)
-    sscanf(argv[8], "%d", &inputs->printskip);
+    sscanf(argv[8], "%d", &(inputs->printskip));
   if (argc > 9)
-    sscanf(argv[9], "%lf", &inputs->nndelta);
+    sscanf(argv[9], "%lf", &(inputs->nndelta));
   if (argc > 10) {
     if ( strcmp(argv[10],"0") != 0 ) {
       inputs->stats_f.open(argv[10], ios::trunc);
@@ -179,7 +123,10 @@ void SpecifyInputs(int argc, const char * argv[], inputs_struct * inputs) {
     }
   }
   if (argc > 11) {
-    if ( strcmp(argv[11],"0") != 0 ) {
+      cout << "b " << endl;
+      cout << argv[11];
+    if (strcmp(argv[11],"0") != 0) {
+      cout << "c" << endl;
       inputs->traj_f.open(argv[11], ios::trunc);
       inputs->traj_f << "{" << argv[11];
       inputs->is_traj_out = true;
@@ -187,9 +134,10 @@ void SpecifyInputs(int argc, const char * argv[], inputs_struct * inputs) {
     }
   }
   if (argc > 12)
-    sscanf(argv[12], "%lf", &inputs->seed);
+    sscanf(argv[12], "%lf", &(inputs->seed));
 }
 
+// Bounds and obstacles can be changed here.
 void SpecifyConstraints(sampling_bounds_struct * bounds, constraints_struct * constraints) {
   // Sets upper and lower boundaries of state and control
   double bounds_delta = 10;
@@ -207,6 +155,7 @@ void SpecifyConstraints(sampling_bounds_struct * bounds, constraints_struct * co
   constraints->ubounds = bounds->ubounds;
 
   // Circular obstacle details
+  // The following creates two circles of radius 0.6m at points (3.0, 0.85) and (3.0,-0.85)
   constraints->obs_radii = { 0.6, 0.6 };
   constraints->obs_Xs = { 3.0, 3.0 };
   constraints->obs_Ys = { 0.85, -0.85 };
@@ -240,4 +189,70 @@ void SpecifyRootTrajectory(const ode_state_type & x0, double t_h_max_upper, Inte
   tt_vec.push_back(t_h_max_upper/2.0);
   tt_vec.push_back(t_h_max_upper);
   uu_interp = new InterpVector(tt_vec, uu_vec);
+}
+
+void Execute(const sampling_bounds_struct & bounds, TreeVertex * init_vert, inputs_struct * inputs) {
+  clock_t t_start2 = clock();
+  cout << "execute start" << endl;
+  Tree tree(init_vert, inputs->t_h_max_upper, bounds, inputs->max_cnt, inputs->max_miss, inputs->max_samplemiss, inputs->printskip, inputs->seed);
+  cout << "tree made" << endl;
+
+  if (inputs->computexxgoaldist) {
+    NSx1_type xxgoal;
+    xxgoal << 0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 6.0 , 0.0;
+    tree.set_xxgoal_stopdist (inputs->stopdist, xxgoal);
+  }
+  tree.set_nndelta(inputs->nndelta);
+
+  cout << "xxgoal set" << endl;
+  double meancnt = 0;
+  double meanmiss = 0;
+  double meandist = 0;
+  double meansamplemiss = 0;
+  int numbxxgoalfails = 0;
+  // Run multiple times to collect statistics
+  for (int ii = 0; ii < inputs->numbruns; ++ii) {
+    cout << " ########################### " << endl;
+    cout << "           ii = " << ii << endl;
+    cout << " ########################### " << endl;
+    
+    tree.RunRRT();
+    
+    meandist += tree.get_disttogoal()/inputs->numbruns;
+    meancnt += double(tree.get_cnttot())/inputs->numbruns;
+    meanmiss += double(tree.get_misstot())/inputs->numbruns;
+    meansamplemiss += double(tree.get_samplemisstot())/inputs->numbruns;
+    
+    if (tree.get_disttogoal() > inputs->stopdist)
+      numbxxgoalfails++;
+    
+    cout << "plotting tree" << endl;
+    if (inputs->is_traj_out)
+      tree.Print(0.02, "tree_"+to_string(ii), &(inputs->traj_f));
+    cout << "done plotting tree" << endl;
+    
+    tree.ResetTree();
+  }
+  cout << "mean dist is: " << meandist << endl;
+  cout << "mean cnt is: " << meancnt << endl;
+  cout << "mean miss is: " << meanmiss << endl;
+  cout << "mean sample miss is: " << meansamplemiss << endl;
+  cout << "mean run time: " << ((float)(clock()-t_start2))/CLOCKS_PER_SEC/inputs->numbruns << " seconds." << endl;
+  cout << "number of xxgoal fails: " << numbxxgoalfails << endl;
+  
+  if (inputs->is_stats_out) {
+    inputs->stats_f << "meandist, " << meandist << endl;
+    inputs->stats_f << "meancnt, " << meancnt << endl;
+    inputs->stats_f << "meanmiss, " << meanmiss << endl;
+    inputs->stats_f << "meansamplemiss, " << meansamplemiss << endl;
+    inputs->stats_f << "meanruntime, " << ((float)(clock()-t_start2))/CLOCKS_PER_SEC/inputs->numbruns << endl;
+    inputs->stats_f << "numbxxgoalsfails, " << numbxxgoalfails << endl;
+    inputs->stats_f.close();
+    cout << "stats finished" << endl;
+  }
+  if (inputs->is_traj_out) {
+    inputs->traj_f << "}";
+    inputs->traj_f.close();
+    cout << "traj finished" << endl;
+  }
 }
