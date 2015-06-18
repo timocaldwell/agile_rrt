@@ -17,7 +17,7 @@ Arguments are specified in order. If one is missing, the default value is used (
 * max_miss = 1000           | Max number of failed insertions into the tree. RRT ends if max_miss reached.
 * max_samplemiss = 10000    | Max number of failed attempts to find a
 * numbruns = 1              | Number of runs of the RRT. Run more to get more statistics.
-* stopdist = 2.0            | Stops RRT if a point is explored within a ball of radius stopdist from the goal state.
+* stopdist = 0.0            | Stops RRT if a point is explored within a ball of radius stopdist from the goal state.
 * printskip = 1             | Number of loops of the RRT to skip between printing details to standard out.
 * nndelta = LARGENUM        | Nearest Neighbor ball radius for quickly checking
 * stats_name = "0"          | Filename to store statistics as a csv. Use "0" or no arg to not make file.
