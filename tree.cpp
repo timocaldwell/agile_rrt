@@ -92,7 +92,7 @@ void Tree::set_xxgoal_stopdist (double stopdist, const NSx1_type & xxgoal) {
 void Tree::Print(double dt, const string & name, ostream * stream) {
   PrintTree(*root_, dt, name, stream);
   if (computedisttogoal_)
-    PrintBranch (*leastdist_node_, dt, "trajs to goal", stream);
+    PrintBranch(*leastdist_node_, dt, "trajs to goal", stream);
 }
 
 void Tree::ResetTree () { // delete all nodes but root
@@ -109,8 +109,8 @@ void Tree::PrintUpdate(double t_h, const NSx1_type & xxsamp) {
   cout << "-------------------------------------------------" << endl;
   cout << "    cnt " << cnt_ << " | misses " << miss_ << " | sample misses " << samplemiss_ << " | t_h " << t_h << endl;
   cout << "    xxsamp " << xxsamp.transpose() << endl;
-  if (computedisttogoal_)
-    cout << "--- best distance to goal is ---- " << disttogoal_ << endl;
+//  if (computedisttogoal_)
+//    cout << "--- best distance to goal is ---- " << disttogoal_ << endl;
 }
 
 void Tree::RunRRT() {
@@ -118,17 +118,13 @@ void Tree::RunRRT() {
   Eigen::Map<NSx1_type> xxsamp(xxsamp_vec.data(), NS, 1);
   double t_h;
   vector<double> t_hs;
-  
-  time_t cur_time = time(0);
-//  clock_t cur_time = time(0);
-  default_random_engine rand_engine((double)cur_time * (double)seed_); // TO SEED TO THE TIME
+
+  double initialseed = seed_;
+  if (seed_==0)
+    initialseed = (double)time(0);
+  default_random_engine rand_engine(initialseed); // TO SEED TO THE TIME
 //        default_random_engine rand_engine((double)time(0)); // TO SEED TO THE TIME
 //        default_random_engine rand_engine(100.1); // To seed fixed
-  
-//        disttogoal = LARGENUM;
-//        cnt = 0;
-//        miss = 0;
-//        samplemiss = 0;
   
   while (cnt_ < max_cnt_ && miss_ < max_miss_ && samplemiss_ < max_samplemiss_) {
     xxsamp_vec.clear();
@@ -150,7 +146,16 @@ void Tree::RunRRT() {
         if (computedisttogoal_) {
           if (best_node->vert->get_disttogoal() < disttogoal_) {
             disttogoal_ = best_node->vert->get_disttogoal();
-            leastdist_node_ = best_node;
+            // new leastdist_node_ is the newly created node from Extend.
+            cout << "           *** new best distance to goal is *** " << disttogoal_ << endl;
+            leastdist_node_ = best_node->children.back();
+
+//            ode_state_type * foundxx = nullptr;
+//            leastdist_node_->vert->get_x0(foundxx);
+//            cout << "new best state : ";
+//            PrintVec(*foundxx);
+//            cout << endl;
+
             if (isstopdist_ && disttogoal_ < stopdist_)
               break;
           }

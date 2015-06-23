@@ -121,28 +121,47 @@ bool IntegrateTrajectoryTrackingDynamics(const InterpVector & uu_ff_interp, cons
 bool IntegrateDynamicSystemWithConstraints(const ode_state_type & uu_loc, const PendCart & sys, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec, vector<ode_state_type> * uu_vec);
 // Solves dxxdtt = ff(xx, uu_ff_interp + KKs_interp*(xx_ref_interp-xx)), xx(0) = x0
 bool IntegrateTrajectoryTrackingDynamicsWithConstraints(const InterpVector & uu_ff_interp, const InterpVector & KKs_interp, const InterpVector & xx_ref_interp, const ode_state_type & x0, const constraints_struct & constraints, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec, vector<ode_state_type> * uu_vec);
-// XXXXXXXXXXX
+// For Agile RRT implemenation: Inexact linear steering with projection. Solves:
+//   dxxdtt = f(xx,uutilde + KKproj*(xxtilde - xx)), xx(0) = x0
+//   xxtilde = xxzero - WWK_mat*Phi^T*eta                                                                                                               
+//   uutilde = (KKlin*WWK - RRinv*BB^T)*Phi^T*eta
+// In addition does the same constraints checking as IntegrateDynamicSystemWithConstraints
 bool IntegrateTrajectoryLinearSteeringProjectionWithConstraints(const InterpVector & xxzero, const InterpVector & BB, const InterpVector & KKlin, const InterpVector & KKproj, const InterpVector & WWK, const InterpVector & Phi, const NSx1_type & eta, const NIxNI_type & RRinv, const ode_state_type & x0, const constraints_struct & constraints, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec, vector<ode_state_type> * uu_vec);
+// Conducts IntegrateTrajectoryLinearSteeringProjectionWithConstraints and additionally computes the running cost ell = 0.5*xx^T*QQ*xx + 0.5*uu^T*RR*uu at position NS in dxxdtt---i.e. f(xx,uu) is length NS+1 now.
 bool IntegrateTrajectoryLinearSteeringProjectionWithConstraintsWithCost(const NSx1_type & xx_samp, const InterpVector & xxzero, const InterpVector & BB, const InterpVector & KKlin, const InterpVector & KKproj, const InterpVector & WWK, const InterpVector & Phi, const NSx1_type & eta, const NSxNS_type & QQ, const NIxNI_type & RR, const NSxNS_type & P1, const NIxNI_type & RRinv, const ode_state_type & x0, const constraints_struct & constraints, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec, vector<ode_state_type> * uu_vec, double * JJ);
 
+// For solving the Ricatti Equation dPPdtt = -AA^T*PP - PP*AA + PP*BB*RR^{-1}*BB^T*PP + QQ, PP(t_h) = P1, where (AA, BB) correspond to a time-varying or time-invariant linear system and the quadratic cost is given by the gains QQ, RR, and P1.
+// The solution PP is a time-varying matrix of dimensions NSxNS.
 class RicattiEq {
  public:
+  // Construct class for solving time-invariant Ricatti equation.
   RicattiEq(const NSxNS_type & AA, const NSxNI_type & BB, const NSxNS_type & QQ, const NIxNI_type & RRinv);
+  // Construct class for solving time-varying Ricatti equation.
   RicattiEq(const InterpVector & AAs_interp, const InterpVector & BBs_interp, const NSxNS_type & QQ, const NIxNI_type & RRinv, double t_h);
+  // Method called by odeint's try_step.
   void operator()(const ode_state_type &PP_vec, ode_state_type &dPP_vec , const double ss);
  private:
+  // Time-invariant Linear system.
   const NSxNS_type * AA_LTI_;
   const NSxNI_type * BB_LTI_;
-  const NSxNS_type * QQ_;
-  const NIxNI_type * RRinv_;
-  int type_;
+  // Time-varying linear system.
   const InterpVector * AAs_interp_;
   const InterpVector * BBs_interp_;
-  double t_h_; // for backward integration
+  // Gains for quadratic cost.
+  const NSxNS_type * QQ_;
+  const NIxNI_type * RRinv_;
+  // Type of integration.
+  int type_;
+  // Time horizon kept track of for backward integration time reparameterization.
+  double t_h_;
 };
+// Solve the time-invariant Ricatti Equation
 bool IntegrateLTIRicatti(const NSxNS_type & AA, const NSxNI_type & BB, const NSxNS_type & QQ, const NIxNI_type & RRinv, const ode_state_type & P1, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * PP_vec);
+// Solve the time-varying Ricatti Equation
 bool IntegrateLTVRicatti(const InterpVector & AAs_interp, const InterpVector & BBs_interp, const NSxNS_type & QQ, const NIxNI_type & RRinv, const ode_state_type & P1, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * PP_vec);
 
+// For solving the Reachability Gramian dWWdtt = AA*WW + WW*AA^T + BB*RR^{-1}*BB^T, WW(0) = 0, where (AA, BB) correspond to a time-varying linear system and RR=RR^T>0.
+// The solution WW is a time-varying matrix of dimensions NSxNS.
 class ReachabilityEq {
  public:
   ReachabilityEq(const InterpVector & AAs_interp, const InterpVector & BBs_interp, const NIxNI_type & RRinv);
@@ -153,43 +172,54 @@ class ReachabilityEq {
   const InterpVector * AAs_interp_;
   const InterpVector * BBs_interp_;
   const InterpVector * KKs_interp_;
-  const InterpVector * WWKs_interp_; // also for grammiantype == SSK_GRAMMIANTYPE
+  const InterpVector * WWKs_interp_; // also for gramiantype == SSK_GRAMIANTYPE
   const NIxNI_type * RR_;
   const NIxNI_type * RRinv_;
   int gramiantype_;
 };
+// Solves time-varying reachability Gramian.
 bool IntegrateWW(const InterpVector & AAs_interp, const InterpVector & BBs_interp, const NIxNI_type & RRinv, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * WW_vec);
+// Solves time-varying reachability Gramian for closed loop linear system AA-BB*KK
 bool IntegrateWWK(const InterpVector & AAs_interp, const InterpVector & BBs_interp, const InterpVector & KKs_interp, const NIxNI_type & RRinv, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * WWK_vec);
-bool IntegrateSSK(const InterpVector & AAs_interp, const InterpVector & BBs_interp, const InterpVector & KKs_interp, const InterpVector & WWKs_interp, const NIxNI_type & RR, const NIxNI_type & RRinv, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * SS_vec);
+// Solves time-varying reachability Gramian for SSK defined for efficient linear steering. 
+bool IntegrateSSK(const InterpVector & AAs_interp, const InterpVector & BBs_interp, const InterpVector & KKs_interp, const InterpVector & WWKs_interp, const NIxNI_type & RR, const NIxNI_type & RRinv, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * SSK_vec);
 
-// dxx = AA*xx + BB*uu
+// Solves time-varying or time-invariant linear system dxxdtt = AA*xx + BB*uu, xx(0) = x_0
 class LinearEq {
  private:
+  // Time-invariant linear system.
   const NSxNS_type * AA_LTI_;
   const NSxNI_type * BB_LTI_;
+  // Time varying linear system
+  const InterpVector * AAs_interp_;
+  const InterpVector * BBs_interp_;
+  //
   const NIxNI_type * RRinv_;
   vector<double> uu_vec_;
   int type_, controltype_;
-  const InterpVector * AAs_interp_;
-  const InterpVector * BBs_interp_;
   const InterpVector * uus_ff_interp_;
   const InterpVector * Phis_interp_;
   const InterpVector * KKs_interp_;
   const NSx1_type * eta_star_;
 
  public:
-  LinearEq(const NSxNS_type & AA, const NSxNI_type & BB);
-  LinearEq(const InterpVector & AAs_interp, const InterpVector & BBs_interp);
+  LinearEq(const NSxNS_type & AA);
+  LinearEq(const InterpVector & AAs_interp);
   LinearEq(const NSxNS_type & AA, const NSxNI_type & BB, const InterpVector & uus_ff_interp);
   LinearEq(const InterpVector & AAs_interp, const InterpVector & BBs_interp, const InterpVector & uus_ff_interp);
   LinearEq(const InterpVector & AAs_interp, const InterpVector & BBs_interp, const NIxNI_type & RRinv, const InterpVector & Phis_interp, const NSx1_type & eta_star);
   LinearEq(const InterpVector & AAs_interp, const InterpVector & BBs_interp, const InterpVector & KKs_interp, const NIxNI_type & RRinv, const InterpVector & Phis_interp, const NSx1_type & eta_star);
   void operator()(const ode_state_type & xx_vec, ode_state_type & dxx_vec, const double tt);
 };
-bool IntegrateLTIFreeDynamics(const NSxNS_type & AA, const NSxNI_type & BB, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec);
+// Solves dxxdtt = AA*xx, xx(0) = x0
+bool IntegrateLTIFreeDynamics(const NSxNS_type & AA, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec);
+// Solves dxxdtt = AA(t)*xx, xx(0) = x0 (time varying system AA)
+bool IntegrateLTVFreeDynamics(const InterpVector & AA_interp, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec);
+// Solves dxxdtt = AA*xx + BB*uu_interp, xx(0) = x0
 bool IntegrateLTIFeedForwardDynamics(const NSxNS_type & AA, const NSxNI_type & BB, const InterpVector & uu_interp, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec);
-bool IntegrateLTVFreeDynamics(const InterpVector & AA_interp, const InterpVector & BB_interp, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec);
+// Solves dxxdtt = AA(t)*xx + BB(t)*uu_interp, xx(0) = x0 (time varying system AA)
 bool IntegrateLTVFeedForwardDynamics(const InterpVector & AA_interp, const InterpVector & BB_interp, const InterpVector & uu_interp, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec);
+// Solves 
 bool IntegrateLTVMinControlOpenLoopDynamics(const InterpVector & AA_interp, const InterpVector & BB_interp, const NIxNI_type & RRinv, const InterpVector & Phis_interp, const NSx1_type & eta_star, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec);
 bool integrateLTVMinControlClosedLoopDynamics(const InterpVector & AA_interp, const InterpVector & BB_interp, const InterpVector & KK_interp, const NIxNI_type & RRinv, const InterpVector & Phis_interp, const NSx1_type & eta_star, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec);
 

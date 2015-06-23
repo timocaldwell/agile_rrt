@@ -162,7 +162,7 @@ void ReachabilityEq::operator()(const ode_state_type &WW_vec , ode_state_type &d
     
     if (gramiantype_ == kWWK_GRAMIANTYPE) {
       dWW = AAK*WW + WW*(AAK.transpose()) + BB*(*RRinv_)*BB.transpose();
-    } else {                                                           //gramiantype = SSK_GRAMMIANTYPE
+    } else {                                                           //gramiantype = SSK_GRAMIANTYPE
       vector<double> WWK_vec(NS*NS);
       WWKs_interp_->pt(tt, &WWK_vec);
       Eigen::Map<NSxNS_type> WWK(WWK_vec.data(), NS, NS);
@@ -189,10 +189,10 @@ bool IntegrateSSK(const InterpVector & AAs_interp, const InterpVector & BBs_inte
   return IntegrateForward(reach_sys, SSK0, tt_h, tt_vec, SSK_vec);
 }
 
-LinearEq::LinearEq(const NSxNS_type & AA, const NSxNI_type & BB)
-    : AA_LTI_(&AA), BB_LTI_(&BB), type_(kLTI_TYPE), controltype_(kFREE_CONTROLTYPE), uu_vec_(NI,0.0) {}
-LinearEq::LinearEq(const InterpVector & AAs_interp, const InterpVector & BBs_interp)
-    : AAs_interp_(&AAs_interp), BBs_interp_(&BBs_interp), uu_vec_(NI,0.0), type_(kLTV_TYPE), controltype_(kFREE_CONTROLTYPE) {}
+LinearEq::LinearEq(const NSxNS_type & AA)
+    : AA_LTI_(&AA), type_(kLTI_TYPE), controltype_(kFREE_CONTROLTYPE) {}//, uu_vec_(NI,0.0) {}
+LinearEq::LinearEq(const InterpVector & AAs_interp)
+    : AAs_interp_(&AAs_interp), type_(kLTV_TYPE), controltype_(kFREE_CONTROLTYPE) {}//, uu_vec_(NI,0.0) {}
 LinearEq::LinearEq(const NSxNS_type & AA, const NSxNI_type & BB, const InterpVector & uus_ff_interp)
     : AA_LTI_(&AA), BB_LTI_(&BB), uus_ff_interp_(&uus_ff_interp), uu_vec_(NI), type_(kLTI_TYPE), controltype_(kFEEDFORWARD_CONTROLTYPE) {}
 LinearEq::LinearEq(const InterpVector & AAs_interp, const InterpVector & BBs_interp, const InterpVector & uus_ff_interp)
@@ -207,52 +207,64 @@ void LinearEq::operator()( const ode_state_type &xx_vec , ode_state_type &dxx_ve
   Eigen::Map<const NSx1_type> xx(xx_vec.data(), NS, 1);
   Eigen::Map<NIx1_type> uu(uu_vec_.data(), NI, 1);
 
-  if (controltype_ == kFEEDFORWARD_CONTROLTYPE) {
-    // *** feedforward:  u = u_ff *** //
-    uus_ff_interp_->pt(tt, &uu_vec_);
-  } else if (controltype_ == kMINENERGY_OPENLOOP_CONTROLTYPE || controltype_ == kMINENERGY_CLOSEDLOOP_CONTROLTYPE) {
-    // *** MIN ENERGY OPEN LOOP:  u = -RRinv * BB^T * Phi^T * eta *** //
-    vector<double> Phi_vec(NS*NS);
-    Phis_interp_->pt(tt, &Phi_vec);
-    Eigen::Map<NSxNS_type> Phi(Phi_vec.data(), NS, NS);
+  if (controltype_ == kFREE_CONTROLTYPE) {
+    if (type_ == kLTI_TYPE) {
+      dxx = (*AA_LTI_)*xx;
+    } else { // type_ == KLTV_TYPE
+      vector<double> AA_vec(NS*NS);
+      AAs_interp_->pt(tt, &AA_vec);
+      Eigen::Map<NSxNS_type> AA(AA_vec.data(), NS, NS);
+      
+      dxx = AA*xx;
+    }
+  } else { // Non-zero control input (i.e. uu!=0)
+    if (controltype_ == kFEEDFORWARD_CONTROLTYPE) {
+      // *** feedforward:  u = u_ff *** //
+      uus_ff_interp_->pt(tt, &uu_vec_);
+    } else if (controltype_ == kMINENERGY_OPENLOOP_CONTROLTYPE || controltype_ == kMINENERGY_CLOSEDLOOP_CONTROLTYPE) {
+      // *** MIN ENERGY OPEN LOOP:  u = -RRinv * BB^T * Phi^T * eta *** //
+      vector<double> Phi_vec(NS*NS);
+      Phis_interp_->pt(tt, &Phi_vec);
+      Eigen::Map<NSxNS_type> Phi(Phi_vec.data(), NS, NS);
 
-    vector<double> BB_vec(NS*NI);
-    BBs_interp_->pt(tt, &BB_vec);
-    Eigen::Map<NSxNI_type> BB(BB_vec.data(), NS, NI);
-    
-    uu = -(*RRinv_) * BB.transpose() * Phi.transpose() * (*eta_star_);
-  }
-  if (type_ == kLTV_TYPE) {
-    vector<double> AA_vec(NS*NS);
-    AAs_interp_->pt(tt, &AA_vec);
-    Eigen::Map<NSxNS_type> AA(AA_vec.data(), NS, NS);
-    
-    vector<double> BB_vec(NS*NI);
-    BBs_interp_->pt(tt, &BB_vec);
-    Eigen::Map<NSxNI_type> BB(BB_vec.data(), NS, NI);
-    
-    if (controltype_ == kMINENERGY_CLOSEDLOOP_CONTROLTYPE) {
-      vector<double> KK_vec(NI*NS);
-      KKs_interp_->pt(tt, &KK_vec);
-      Eigen::Map<NIxNS_type> KK(KK_vec.data(), NI, NS);
-      dxx = AA*xx - BB*KK*xx + BB*uu;
+      vector<double> BB_vec(NS*NI);
+      BBs_interp_->pt(tt, &BB_vec);
+      Eigen::Map<NSxNI_type> BB(BB_vec.data(), NS, NI);
+      
+      uu = -(*RRinv_) * BB.transpose() * Phi.transpose() * (*eta_star_);
+    }
+    if (type_ == kLTV_TYPE) {
+      vector<double> AA_vec(NS*NS);
+      AAs_interp_->pt(tt, &AA_vec);
+      Eigen::Map<NSxNS_type> AA(AA_vec.data(), NS, NS);
+      
+      vector<double> BB_vec(NS*NI);
+      BBs_interp_->pt(tt, &BB_vec);
+      Eigen::Map<NSxNI_type> BB(BB_vec.data(), NS, NI);
+      
+      if (controltype_ == kMINENERGY_CLOSEDLOOP_CONTROLTYPE) {
+        vector<double> KK_vec(NI*NS);
+        KKs_interp_->pt(tt, &KK_vec);
+        Eigen::Map<NIxNS_type> KK(KK_vec.data(), NI, NS);
+        dxx = AA*xx - BB*KK*xx + BB*uu;
+      }
+      else
+        dxx = AA*xx + BB*uu;
     }
     else
-      dxx = AA*xx + BB*uu;
+      dxx = (*AA_LTI_)*xx + (*BB_LTI_)*uu;
   }
-  else
-    dxx = (*AA_LTI_)*xx + (*BB_LTI_)*uu;
 }
-bool IntegrateLTIFreeDynamics(const NSxNS_type & AA, const NSxNI_type & BB, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec) {
-  LinearEq linear_sys(AA, BB);
+bool IntegrateLTIFreeDynamics(const NSxNS_type & AA, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec) {
+  LinearEq linear_sys(AA);
+  return IntegrateForward(linear_sys, x0, tt_h, tt_vec, xx_vec);
+}
+bool IntegrateLTVFreeDynamics(const InterpVector & AA_interp, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec) {
+  LinearEq linear_sys(AA_interp);
   return IntegrateForward(linear_sys, x0, tt_h, tt_vec, xx_vec);
 }
 bool IntegrateLTIFeedForwardDynamics(const NSxNS_type & AA, const NSxNI_type & BB, const InterpVector & uu_interp, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec) {
   LinearEq linear_sys(AA, BB, uu_interp);
-  return IntegrateForward(linear_sys, x0, tt_h, tt_vec, xx_vec);
-}
-bool IntegrateLTVFreeDynamics(const InterpVector & AA_interp, const InterpVector & BB_interp, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec) {
-  LinearEq linear_sys(AA_interp, BB_interp);
   return IntegrateForward(linear_sys, x0, tt_h, tt_vec, xx_vec);
 }
 bool IntegrateLTVFeedForwardDynamics(const InterpVector & AA_interp, const InterpVector & BB_interp, const InterpVector & uu_interp, const ode_state_type & x0, double tt_h, vector<double> * tt_vec, vector<ode_state_type> * xx_vec) {

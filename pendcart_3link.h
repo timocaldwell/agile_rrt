@@ -37,7 +37,7 @@ class PendCart {
   // track trajectory with feedforward---uu = uu_ff_interp + kk_interp*(xx_ref_interp - xx)
   PendCart(const InterpVector & uu_ff_interp, const InterpVector & KK_interp, const InterpVector & xx_ref_interp);
   PendCart(const InterpVector & uu_ff_interp, const InterpVector & KK_interp, const InterpVector & xx_ref_interp, const constraints_struct & constraints, ode_state_type * uu_out);
-  // For Agile RRT implemenation: Inexact inear steering with projection                                                                                  
+  // For Agile RRT implemenation: Inexact linear steering with projection                                                                                  
   //   xxtilde = xxzero - WWK_mat*Phi^T*eta                                                                                                               
   //   uutilde = (KKlin*WWK - RRinv*BB^T)*Phi^T*eta                                                                                                       
   //   uu = uutilde + KKproj*(xxtilde - xx)
@@ -64,27 +64,6 @@ class PendCart {
  private:
   const double linklen_ = 0.333333;
   const int numlinks_ = 3;
-
-//  vector<double> uu_;
-//  int type_;
-//  const InterpVector * uu_ff_interp_; // feedforward inputs
-//  const InterpVector * KK_interp_; // Gains
-//  const InterpVector * xx_ref_interp_; // Trajectory tracking
-//
-//  const InterpVector * xxzero_;
-//  const InterpVector * BB_;
-//  const InterpVector * KKlin_;
-//  const InterpVector * KKproj_;
-//  const InterpVector * WWK_;
-//  const InterpVector * Phi_;
-//  
-//  const NSx1_type * eta_;
-//  const NIxNI_type * RRinv_;
-//  const NSxNS_type * QQ_;
-//  const NIxNI_type * RR_;
-//
-//  const ode_state_type * xx_ref_pt_;
-//  const constraints_struct * constraints_;
   vector<double> uu_;
   int type_;
   const InterpVector * uu_ff_interp_;         // Feedforward trajectory.                                                                                  

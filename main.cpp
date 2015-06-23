@@ -20,7 +20,7 @@
 //    nndelta = LARGENUM        | Nearest Neighbor ball radius for quickly checking
 //    stats_name = "0"          | Filename to store statistics as a csv. Use "0" or no arg to not make file.
 //    traj_name = "0"           | Filename to store tree trajectories easily readable by Mathematica. Use "0" or no arg to not make file
-//    seed = 0                  | To choose the seed to the random number generator
+//    seed = 0                  | To choose the seed to the random number generator (if 0 then seeded to cpu time)
 
 
 
@@ -67,33 +67,32 @@ int main(int argc, const char * argv[])
 {
   inputs_struct inputs;
   SpecifyInputs(argc, argv, &inputs);
-  cout << "asd" << endl;
+  
   // The initial conditions
   ode_state_type x0 = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-  cout << "bsd" << endl;
+
   // Set bounds and constraints.
   sampling_bounds_struct bounds;
   constraints_struct constraints;
   SpecifyConstraints(&bounds, &constraints);
-    cout << "csd" << endl;
+
   // Set cost gains.
   NSxNS_type QQ, P1;
   NIxNI_type RR, RRinv;
   SpecifyCostGains(bounds, &QQ, &RR, &RRinv, &P1);
-  cout << "dsd" << endl;
+
   // Set root trajectory to free dynamics.
   InterpVector xx_interp;// = nullptr;
   InterpVector uu_interp;// = nullptr;
   SpecifyRootTrajectory(x0, inputs.t_h_max_upper, &xx_interp, &uu_interp);
-  cout << "esd" << endl;
+
   // Create initial vertex.
   TreeVertex * init_vert = new TreeVertex(x0, inputs.usezerotraj, inputs.t_h_max_upper, xx_interp, uu_interp, constraints, QQ, RR, P1, QQ, RR, P1, inputs.t_h_max_upper, inputs.save_edges);
-  cout << "fsd" << endl;
+
   Execute(bounds, init_vert, &inputs);
 }
 
 void SpecifyInputs(int argc, const char * argv[], inputs_struct * inputs) {
-  cout << "a " << argc << endl;
   if (argc > 1)
     sscanf(argv[1], "%lf", &(inputs->t_h_max_upper));
   if (argc > 2)
@@ -123,10 +122,7 @@ void SpecifyInputs(int argc, const char * argv[], inputs_struct * inputs) {
     }
   }
   if (argc > 11) {
-      cout << "b " << endl;
-      cout << argv[11];
     if (strcmp(argv[11],"0") != 0) {
-      cout << "c" << endl;
       inputs->traj_f.open(argv[11], ios::trunc);
       inputs->traj_f << "{" << argv[11];
       inputs->is_traj_out = true;
@@ -193,9 +189,7 @@ void SpecifyRootTrajectory(const ode_state_type & x0, double t_h_max_upper, Inte
 
 void Execute(const sampling_bounds_struct & bounds, TreeVertex * init_vert, inputs_struct * inputs) {
   clock_t t_start2 = clock();
-  cout << "execute start" << endl;
   Tree tree(init_vert, inputs->t_h_max_upper, bounds, inputs->max_cnt, inputs->max_miss, inputs->max_samplemiss, inputs->printskip, inputs->seed);
-  cout << "tree made" << endl;
 
   if (inputs->computexxgoaldist) {
     NSx1_type xxgoal;
@@ -204,7 +198,6 @@ void Execute(const sampling_bounds_struct & bounds, TreeVertex * init_vert, inpu
   }
   tree.set_nndelta(inputs->nndelta);
 
-  cout << "xxgoal set" << endl;
   double meancnt = 0;
   double meanmiss = 0;
   double meandist = 0;
@@ -226,10 +219,8 @@ void Execute(const sampling_bounds_struct & bounds, TreeVertex * init_vert, inpu
     if (tree.get_disttogoal() > inputs->stopdist)
       numbxxgoalfails++;
     
-    cout << "plotting tree" << endl;
     if (inputs->is_traj_out)
-      tree.Print(0.02, "tree_"+to_string(ii), &(inputs->traj_f));
-    cout << "done plotting tree" << endl;
+      tree.Print(0.02, "\"tree "+to_string(ii)+" \"", &(inputs->traj_f));
     
     tree.ResetTree();
   }
@@ -248,11 +239,9 @@ void Execute(const sampling_bounds_struct & bounds, TreeVertex * init_vert, inpu
     inputs->stats_f << "meanruntime, " << ((float)(clock()-t_start2))/CLOCKS_PER_SEC/inputs->numbruns << endl;
     inputs->stats_f << "numbxxgoalsfails, " << numbxxgoalfails << endl;
     inputs->stats_f.close();
-    cout << "stats finished" << endl;
   }
   if (inputs->is_traj_out) {
     inputs->traj_f << "}";
     inputs->traj_f.close();
-    cout << "traj finished" << endl;
   }
 }

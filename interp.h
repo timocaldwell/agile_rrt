@@ -77,10 +77,12 @@ class InterpVector {
   //                          .
   //                          .
   //     {{{t0+ii*dt,xx0(t0+ii*dt)},{t0+ii*dt,xx1(t0+ii*dt)},...,{t0+ii*dt,xxn(t0+ii*dt)}}}
+  //     {{{tf,xx0(tf)},{tf,xx1(tf)},...,{tf,xxn(tf)}}}
   //   where n+1 is the size of the interpolated vector and ii is such that tt+ii*dt < t_right_ and tt+(ii+1)*dt > t_right_.
   void Print(double dt, ostream * stream = (&cout)) const;
   // Prepends previous output with ",{"name and appends "}"
   void Print(double dt, const string & name, ostream * stream) const;
+  void PrintEndPt(ostream * stream) const;
 
  private:
   // Stores each interpolation as a vector of Interp objects.

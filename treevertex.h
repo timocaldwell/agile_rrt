@@ -44,6 +44,7 @@ class TreeVertex {
   bool Projection(const NSx1_type & xxsamp, double t_h);
   void PrintTraj(double dt, const string & name, ostream * stream);
   void PrintEdgeTraj(double dt, const string & name, ostream * stream);
+  void get_x0(ode_state_type * x0) {x0 = &x0_;}
   TreeVertex NewVertex();
 };
 

@@ -118,17 +118,24 @@ void InterpVector::Print(double dt, ostream * stream) const {
   }
   (*stream) << ",{";
   for (unsigned jj = 0; jj < xx_pt_size_; ++jj) {
-    tt = xx_[0]->begin();
+    tt = xx_[jj]->begin();
     (*stream) << "{";
     for (int ii = 0; ii < 1000; ++ii ){
-      if ( xx_[jj]->pt(tt) > kPRINT_CHOP_BOUND || xx_[jj]->pt(tt) < -kPRINT_CHOP_BOUND ) // chop for printing.
+      if ( xx_[jj]->pt(tt) > kPRINT_CHOP_BOUND || xx_[jj]->pt(tt) < -kPRINT_CHOP_BOUND ) // Chop for printing.
         (*stream) << "{" << tt << "," << std::setprecision(kPRINT_PRECISION) <<  xx_[jj]->pt(tt) << "}";
       else
         (*stream) << "{" << tt << "," << 0 << "}";
       tt += dt;
-      if (tt <= xx_[0]->end())
-        (*stream) << ",";
-      else {
+      (*stream) << ",";
+      
+      if (tt >= xx_[jj]->end()) {
+        // Print final time.
+        tt = xx_[jj]->end();
+        if ( xx_[jj]->pt(tt) > kPRINT_CHOP_BOUND || xx_[jj]->pt(tt) < -kPRINT_CHOP_BOUND ) // Chop for printing.
+          (*stream) << "{" << tt << "," << std::setprecision(kPRINT_PRECISION) <<  xx_[jj]->pt(tt) << "}";
+        else
+          (*stream) << "{" << tt << "," << 0 << "}";
+        
         (*stream) << "}";
         break;
       }
@@ -143,4 +150,17 @@ void InterpVector::Print(double dt, const string & name, ostream * stream) const
   (*stream) << ",{" << name ;
   Print(dt, stream);
   (*stream) << "}";
+}
+void InterpVector::PrintEndPt(ostream * stream) const {
+  (*stream) << "{{" << xx_[0]->end() << "},{";
+  double tt = xx_[0]->end();
+  for (unsigned jj = 0; jj < xx_pt_size_; ++jj) {
+    if ( xx_[jj]->pt(tt) > kPRINT_CHOP_BOUND || xx_[jj]->pt(tt) < -kPRINT_CHOP_BOUND ) // Chop for printing.
+      (*stream) << std::setprecision(kPRINT_PRECISION) <<  xx_[jj]->pt(tt);
+    else
+      (*stream) << 0;
+    if (jj < xx_pt_size_ - 1)
+      (*stream) << ",";
+  }
+  (*stream) << "}}";
 }
