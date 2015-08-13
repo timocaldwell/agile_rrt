@@ -1,5 +1,5 @@
 # AgileRRT for 3-Link Pendulum on a Cart
-![alt tag](animate_24_obs.gif)
+![alt tag](animate_numobs24_1p0_224.gif)
 AgileRRT motion plans the highly dynamic 3-link pendulum on a cart. It executes the rapidly exploring random tree using LQR-based steering with linearization about the zero-control trajectory. 
 
 Zero-control steering is presented in caldwell_isrr2015.pdf submitted to ISRR. The code implements Algorithm 4 in the paper, efficient fixed time horizon inexact linear steering, as well as Equation 26, the projection operation.
@@ -54,4 +54,15 @@ A gif animation of the best branch shows the movement of the best trajectory ("a
 
 Each frame of the gif can be displayed on top of each other for a nice visualization ("bestbranchdraws.jpg"):
 ![alt tag](bestbranchdraws.jpg)
+
+## Obstacles
+Currently, main.cpp must be changed to implement a new obstacle sets. Here are some results for 24 randomly selected obstacles placed in the way of the pendulum of the cart.
+
+![alt tag](animate_numobs24_0p75_214.gif)
+![alt tag](animate_numobs24_0p75_310.gif)
+![alt tag](animate_numobs24_0p75_348.gif)
+![alt tag](animate_numobs24_0p75_529.gif)
+![alt tag](animate_numobs24_0p1_224.gif)
+
+
 
